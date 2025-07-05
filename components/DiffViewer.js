@@ -12,11 +12,17 @@ export default function DiffViewer({ oldValue, newValue }) {
 			language="plaintext"
 			original={oldValue}
 			modified={newValue}
+			loading={
+				<div className="flex items-center justify-center h-full">
+					Comparing...
+				</div>
+			}
 			options={{
 				readOnly: true,
 				wordWrap: "off",
 				scrollBeyondLastLine: false,
 				renderWhitespace: "all",
+				minimap: { enabled: false },
 			}}
 		/>
 	);
