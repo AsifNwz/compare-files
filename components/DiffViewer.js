@@ -17,6 +17,7 @@ import {
 import { Button } from "./ui/button";
 import { ModeToggle } from "./ModeToggle";
 import { Input } from "./ui/input";
+import Image from "next/image";
 
 export default function DiffViewer() {
   const { theme } = useTheme();
@@ -132,8 +133,13 @@ export default function DiffViewer() {
           Compare
         </span> */}
 
-        <div className="px-1 bg-white rounded-sm">
-          <Image src={"/logo_color.png"} height={40} width={100} />
+        <div className="rounded-sm bg-white px-1">
+          <Image
+            src={"/logo_color.png"}
+            alt={"tranistics logo"}
+            height={40}
+            width={100}
+          />
         </div>
 
         <div className="flex items-center gap-4">
