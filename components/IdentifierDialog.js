@@ -44,7 +44,9 @@ export default function IdentifierDialog({ open, onConfirm, onCancel }) {
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+					<AlertDialogCancel onClick={onCancel} className={"cursor-pointer"}>
+						Cancel
+					</AlertDialogCancel>
 					<AlertDialogAction
 						onClick={() => {
 							const lineNum = parseInt(line, 10) - 1;
@@ -52,6 +54,7 @@ export default function IdentifierDialog({ open, onConfirm, onCancel }) {
 							const endNum = parseInt(end, 10);
 							onConfirm({ line: lineNum, start: startNum, end: endNum });
 						}}
+						className={"cursor-pointer"}
 					>
 						Compare
 					</AlertDialogAction>
