@@ -149,7 +149,7 @@ export default function DiffViewer() {
               type="file"
               multiple
               onChange={(e) => setSourceFiles([...e.target.files])}
-              className="bg-green-200 text-xs dark:bg-green-900"
+              className="cursor-pointer bg-green-200 text-xs dark:bg-green-900"
             />
           </label>
 
@@ -159,7 +159,7 @@ export default function DiffViewer() {
               type="file"
               multiple
               onChange={(e) => setTargetFiles([...e.target.files])}
-              className="bg-yellow-200 text-xs dark:bg-yellow-800"
+              className="cursor-pointer bg-yellow-200 text-xs dark:bg-yellow-800"
             />
           </label>
         </div>
