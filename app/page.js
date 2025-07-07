@@ -10545,5 +10545,5 @@ PACFDC            ~-00000000167~          ~
 `;
 
 export default function Home() {
-	return <DiffViewer oldValue={old} newValue={newV} />;
+	return <DiffViewer />;
 }
