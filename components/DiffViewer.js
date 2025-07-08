@@ -295,7 +295,7 @@ export default function DiffViewer() {
                   </td>
 
                   <td className="p-2 text-xs">
-                    {src.content === tgt.content ? (
+                    {src.content?.trimEnd() === tgt.content?.trimEnd() ? (
                       <span className="rounded-sm bg-green-600 px-4 py-1 text-white">
                         Match
                       </span>
