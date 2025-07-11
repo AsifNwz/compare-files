@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import IdentifierDialog from "./IdentifierDialog";
@@ -28,70 +28,97 @@ export default function DiffViewer() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sourceFiles, setSourceFiles] = useState([]);
   const [targetFiles, setTargetFiles] = useState([]);
+  const [cursorPos, setCursorPos] = useState({
+    line: 1,
+    column: 1,
+    selLength: 0,
+  });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeSrc, setActiveSrc] = useState(null);
+  const [activeTgt, setActiveTgt] = useState(null);
 
   const readFileContent = (file) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () =>
-        resolve({ name: file.name, content: reader.result });
+        resolve({ name: file.name, content: reader?.result });
       reader.readAsText(file);
     });
   };
 
-  const compareMultiple = async (files, line, start, end) => {
-    const contents = await Promise.all(files.map(readFileContent));
-    const sets = [];
-    const used = new Set();
+  const compareMultiple = (files, line, start, end) => {
+    return toast.promise(
+      new Promise(async (resolve, reject) => {
+        try {
+          const contents = await Promise.all(files.map(readFileContent));
+          const sets = [];
+          const used = new Set();
 
-    for (let i = 0; i < contents.length; i++) {
-      if (used.has(i)) continue;
-      const lines = contents[i].content.split("\n");
-      const identifier = lines[line]?.slice(start, end);
+          for (let i = 0; i < contents.length; i++) {
+            if (used.has(i)) continue;
+            const lines = contents[i].content.split("\n");
+            const identifier = lines[line]?.slice(start, end);
 
-      for (let j = i + 1; j < contents.length; j++) {
-        if (used.has(j)) continue;
+            for (let j = i + 1; j < contents.length; j++) {
+              if (used.has(j)) continue;
 
-        if (contents[j].content.includes(identifier)) {
-          sets.push([contents[i], contents[j]]);
-          used.add(i);
-          used.add(j);
-          break;
+              if (contents[j].content.includes(identifier)) {
+                sets.push([contents[i], contents[j]]);
+                used.add(i);
+                used.add(j);
+                break;
+              }
+            }
+          }
+
+          setComparisonSets(sets);
+          resolve(`${sets.length} set(s) of files found.`);
+        } catch (err) {
+          reject("Error while comparing files.");
         }
-      }
-    }
-
-    setComparisonSets(sets);
-    if (sets.length > 0) {
-      toast.success(`${sets.length} set(s) of files found.`);
-    } else {
-      toast.error("No matching identifier found in remaining files.");
-    }
+      }),
+      {
+        loading: "Comparing files...",
+        success: (msg) => msg,
+        error: (msg) => msg,
+      },
+    );
   };
 
-  const compareSourcesWithTargets = async (line, start, end) => {
-    const sources = await Promise.all(sourceFiles.map(readFileContent));
-    const targets = await Promise.all(targetFiles.map(readFileContent));
-    const sets = [];
+  const compareSourcesWithTargets = (line, start, end) => {
+    return toast.promise(
+      new Promise(async (resolve, reject) => {
+        try {
+          const sources = await Promise.all(sourceFiles.map(readFileContent));
+          const targets = await Promise.all(targetFiles.map(readFileContent));
+          const sets = [];
 
-    for (let i = 0; i < sources.length; i++) {
-      const src = sources[i];
-      const lines = src.content.split("\n");
-      const identifier = lines[line]?.slice(start, end);
+          for (let i = 0; i < sources.length; i++) {
+            const src = sources[i];
+            const lines = src.content.split("\n");
+            const identifier = lines[line]?.slice(start, end);
 
-      for (let tgt of targets) {
-        if (tgt.content.includes(identifier)) {
-          sets.push([src, tgt]);
-          break;
+            for (let tgt of targets) {
+              if (tgt.content.includes(identifier)) {
+                sets.push([src, tgt]);
+                break;
+              }
+            }
+          }
+
+          setComparisonSets(sets);
+          resolve(`${sets.length} set(s) of files found.`);
+        } catch (err) {
+          reject("Error while comparing files.");
         }
-      }
-    }
-
-    setComparisonSets(sets);
-    if (sets.length > 0) {
-      toast.success(`${sets.length} set(s) of files found.`);
-    } else {
-      toast.error("No matching identifier found in target files.");
-    }
+      }),
+      {
+        loading: "Comparing files...",
+        success: (msg) => msg,
+        error: (msg) => msg,
+      },
+    );
   };
 
   const onDrop = async (acceptedFiles) => {
@@ -124,11 +151,28 @@ export default function DiffViewer() {
     setPendingFiles([]);
   };
 
+  const handleCompareLines = (src, trg) => {
+    const lowerSearch = searchTerm.toLowerCase();
+
+    const newSrcContent = (src?.content || "")
+      .split("\n")
+      .filter((line) => line.toLowerCase().startsWith(lowerSearch))
+      .join("\n");
+
+    const newTrgContent = (trg?.content || "")
+      .split("\n")
+      .filter((line) => line.toLowerCase().startsWith(lowerSearch))
+      .join("\n");
+
+    setActiveSrc({ ...src, content: newSrcContent });
+    setActiveTgt({ ...trg, content: newTrgContent });
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   return (
     <div>
-      <div className="bg-secondary/50 fixed top-0 z-10 flex h-10 w-full items-center justify-between gap-4 px-5 backdrop-blur-xs">
+      <div className="bg-secondary/50 fixed top-0 z-10 flex h-14 w-full items-center justify-between gap-4 px-5 backdrop-blur-xs">
         {/* <span className="bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-xl font-bold text-transparent">
           Compare
         </span> */}
@@ -143,42 +187,63 @@ export default function DiffViewer() {
         </div>
 
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-xs font-semibold text-nowrap">
-            Source Files
-            <Input
-              type="file"
-              multiple
-              onChange={(e) => setSourceFiles([...e.target.files])}
-              className="cursor-pointer bg-green-200 text-xs dark:bg-green-900"
-            />
-          </label>
+          <div className="flex flex-col items-start gap-1">
+            <Button
+              size="sm"
+              className="bg-green-600 text-sm text-black hover:bg-green-800 hover:text-white dark:bg-green-700 dark:text-amber-100 dark:hover:bg-green-800 dark:hover:text-white"
+              onClick={() => document.getElementById("source-upload").click()}
+            >
+              {sourceFiles.length
+                ? `${sourceFiles.length} file(s) selected`
+                : "Upload Source Files"}
+            </Button>
 
-          <label className="flex items-center gap-2 text-xs font-semibold text-nowrap">
-            Target Files
-            <Input
+            <input
+              id="source-upload"
               type="file"
               multiple
-              onChange={(e) => setTargetFiles([...e.target.files])}
-              className="cursor-pointer bg-yellow-200 text-xs dark:bg-yellow-800"
+              hidden
+              onChange={(e) => setSourceFiles([...e.target.files])}
             />
-          </label>
+          </div>
+
+          <div className="flex flex-col items-start gap-1">
+            <Button
+              size="sm"
+              className="bg-yellow-300 text-sm text-black hover:bg-yellow-700 hover:text-white dark:bg-yellow-700 dark:text-amber-100 dark:hover:bg-yellow-800 dark:hover:text-white"
+              onClick={() => document.getElementById("target-upload").click()}
+            >
+              {targetFiles.length
+                ? `${targetFiles.length} file(s) selected`
+                : "Upload Target Files"}
+            </Button>
+
+            <input
+              id="target-upload"
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => setTargetFiles([...e.target.files])}
+            />
+          </div>
+
+          {sourceFiles.length > 0 && targetFiles.length > 0 && (
+            <Button
+              size="sm"
+              className="ml-20"
+              onClick={() => {
+                if (!sourceFiles.length || !targetFiles.length) {
+                  toast.error("Upload both source and target files first.");
+                  return;
+                }
+                setShowDialog(true);
+              }}
+            >
+              Compare
+            </Button>
+          )}
         </div>
 
-        {sourceFiles.length > 0 && targetFiles.length > 0 && (
-          <Button
-            size="sm"
-            className="cursor-pointer"
-            onClick={() => {
-              if (!sourceFiles.length || !targetFiles.length) {
-                toast.error("Upload both source and target files first.");
-                return;
-              }
-              setShowDialog(true);
-            }}
-          >
-            Compare
-          </Button>
-        )}
         <ModeToggle />
       </div>
 
@@ -201,112 +266,262 @@ export default function DiffViewer() {
       ) : null}
 
       {comparisonSets.length > 0 && (
-        <div className="mt-8 p-4">
-          {/* <h2 className="text-md font-semibold mb-2">Comparison Sets</h2> */}
+        <div className="mt-10 p-4">
           <table className="w-full table-fixed border text-sm">
             <thead className="bg-accent text-left">
               <tr>
-                <th className="w-5/12 p-2">Source File</th>
-                <th className="w-5/12 p-2">Target File</th>
+                <th className="w-1/12 p-2 text-center">#</th>
+                <th className="w-4.5/12 p-2">Source File</th>
+                <th className="w-4.5/12 p-2">Target File</th>
                 <th className="w-1/12 p-2">Action</th>
                 <th className="w-1/12 p-2">Result</th>
               </tr>
             </thead>
             <tbody>
-              {comparisonSets.map(([src, tgt], i) => (
-                <tr key={i} className="hover:bg-accent border-t">
-                  <td className="p-2 text-xs text-wrap">{src.name}</td>
-                  <td className="p-2 text-xs text-wrap">{tgt.name}</td>
-                  <td className="text-xs">
-                    <Sheet
-                      open={sheetOpen && selectedSet === i}
-                      onOpenChange={setSheetOpen}
+              {[...comparisonSets]
+                .map((pair, index) => ({ index, pair }))
+                .sort((a, b) => {
+                  const aMatch =
+                    a.pair[0].content?.trimEnd() ===
+                    a.pair[1].content?.trimEnd();
+                  const bMatch =
+                    b.pair[0].content?.trimEnd() ===
+                    b.pair[1].content?.trimEnd();
+                  return aMatch === bMatch ? 0 : aMatch ? -1 : 1;
+                })
+                .map(({ index, pair }, serial) => {
+                  const [src, tgt] = pair;
+                  const isMatch =
+                    src.content?.trimEnd() === tgt.content?.trimEnd();
+                  const isChecked = selectedSet === index;
+
+                  return (
+                    <tr
+                      key={index}
+                      className="border-t hover:bg-green-100 dark:hover:bg-green-950"
                     >
-                      <SheetTrigger asChild>
-                        <Button
-                          className="h-6 cursor-pointer rounded-sm text-xs"
-                          onClick={() => {
-                            setSelectedSet(i);
-                            setSheetOpen(true);
-                          }}
+                      <td className="flex items-center justify-center gap-2 py-4 text-sm text-wrap">
+                        <input type="checkbox" checked={isChecked} readOnly />
+                        <span>{serial + 1}</span>
+                      </td>
+                      <td className="p-2 text-xs text-wrap">{src.name}</td>
+                      <td className="p-2 text-xs text-wrap">{tgt.name}</td>
+                      <td className="text-xs">
+                        <Sheet
+                          open={sheetOpen && selectedSet === index}
+                          onOpenChange={setSheetOpen}
                         >
-                          View
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent className="w-full min-w-[95%]">
-                        <SheetHeader>
-                          <SheetTitle className="mb-2 grid grid-cols-2 gap-2 text-xs">
-                            <span>
-                              {src.name?.length > 83
-                                ? src.name.slice(0, 83) + "..."
-                                : src.name}
-                            </span>
-                            <span>
-                              {tgt.name?.length > 83
-                                ? tgt.name.slice(0, 83) + "..."
-                                : tgt.name}
-                            </span>
-                          </SheetTitle>
-                          <DiffEditor
-                            height="90vh"
-                            theme={theme === "light" ? "vs-light" : "vs-dark"}
-                            language="plaintext"
-                            original={src.content}
-                            modified={tgt.content}
-                            // onMount={(editor, monaco) => {
-                            // 	monaco.editor.defineTheme("custom-diff-theme", {
-                            // 		base: theme === "light" ? "vs" : "vs-dark",
-                            // 		inherit: true,
-                            // 		rules: [],
-                            // 		colors: {
-                            // 			"diffEditor.insertedTextBackground":
-                            // 				"#00000000",
-                            // 			"diffEditor.removedTextBackground":
-                            // 				"#00000000",
-                            // 			"diffEditor.insertedTextBorder": "#dc2626",
-                            // 			"diffEditor.removedTextBorder": "#dc2626",
-                            // 			"editorOverviewRuler.insertedForeground":
-                            // 				"#00000000",
-                            // 			"editorOverviewRuler.deletedForeground":
-                            // 				"#00000000",
-                            // 			"editorGutter.modifiedBackground":
-                            // 				"#00000000",
-                            // 			"editorGutter.addedBackground": "#00000000",
-                            // 			"editorGutter.deletedBackground": "#00000000",
-                            // 		},
-                            // 	});
+                          <SheetTrigger asChild>
+                            <Button
+                              className="h-6 cursor-pointer rounded-sm text-xs"
+                              onClick={() => {
+                                setSelectedSet(index);
+                                setActiveSrc(src);
+                                setActiveTgt(tgt);
+                                setSheetOpen(true);
+                              }}
+                            >
+                              View
+                            </Button>
+                          </SheetTrigger>
+                          <SheetContent className="w-full min-w-[95%]">
+                            <SheetHeader>
+                              <SheetTitle className="mb-2">
+                                <div className="mt-1 mb-4 flex items-center gap-2">
+                                  <Input
+                                    className="h-6 w-32 px-2 py-1 text-xs"
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setSearchTerm(value);
+                                      if (value.length === 0) {
+                                        setActiveSrc({
+                                          ...src,
+                                          content: src.content || "",
+                                        });
+                                        setActiveTgt({
+                                          ...tgt,
+                                          content: tgt.content || "",
+                                        });
+                                      }
+                                    }}
+                                    placeholder="Line starts with..."
+                                  />
+                                  <Button
+                                    onClick={() => handleCompareLines(src, tgt)}
+                                    className="bg-primary h-6 w-20 rounded px-3 py-1 text-sm"
+                                  >
+                                    Compare
+                                  </Button>
+                                  {searchTerm && (
+                                    <Button
+                                      onClick={() => {
+                                        setSearchTerm("");
+                                        setActiveSrc({
+                                          ...src,
+                                          content: src.content || "",
+                                        });
+                                        setActiveTgt({
+                                          ...tgt,
+                                          content: tgt.content || "",
+                                        });
+                                      }}
+                                      className="bg-primary h-6 w-20 rounded px-3 py-1 text-sm"
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                </div>
 
-                            // 	monaco.editor.setTheme("custom-diff-theme"); // 👈 apply the theme
-                            // }}
-                            options={{
-                              readOnly: false,
-                              wordWrap: "off",
-                              scrollBeyondLastLine: false,
-                              renderWhitespace: "all",
-                              minimap: { enabled: false },
-                              renderIndicators: false,
-                              diffAlgorithm: "advanced",
-                              // ignoreTrimWhitespace: false,
-                            }}
-                          />
-                        </SheetHeader>
-                      </SheetContent>
-                    </Sheet>
-                  </td>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <span className="truncate">{src.name}</span>
+                                  <span className="truncate">{tgt.name}</span>
+                                </div>
+                              </SheetTitle>
+                              <DiffEditor
+                                height="80vh"
+                                theme="custom-diff-theme"
+                                language="plaintext"
+                                original={activeSrc?.content?.trimEnd() || ""}
+                                modified={activeTgt?.content?.trimEnd() || ""}
+                                options={{
+                                  readOnly: false,
+                                  wordWrap: "off",
+                                  scrollBeyondLastLine: false,
+                                  renderWhitespace: "all",
+                                  minimap: { enabled: false },
+                                  renderIndicators: false,
+                                  // diffAlgorithm: "advanced",
+                                }}
+                                onMount={(editor, monaco) => {
+                                  const original = editor.getOriginalEditor();
+                                  const modified = editor.getModifiedEditor();
 
-                  <td className="p-2 text-xs">
-                    {src.content?.trimEnd() === tgt.content?.trimEnd() ? (
-                      <span className="rounded-sm bg-green-600 px-4 py-1 text-white">
-                        Match
-                      </span>
-                    ) : (
-                      <span className="rounded-sm bg-red-600 px-2 py-1 text-white">
-                        Different
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                                  // Shared cursor update function (debounced with requestAnimationFrame)
+                                  let animationFrameId;
+
+                                  const updateCursorInfo = (paneEditor) => {
+                                    if (animationFrameId)
+                                      cancelAnimationFrame(animationFrameId);
+
+                                    animationFrameId = requestAnimationFrame(
+                                      () => {
+                                        const position =
+                                          paneEditor.getPosition();
+                                        const selection =
+                                          paneEditor.getSelection();
+                                        const text = paneEditor
+                                          .getModel()
+                                          .getValueInRange(selection);
+
+                                        setCursorPos({
+                                          line: position.lineNumber,
+                                          column: position.column,
+                                          selLength: text.length,
+                                        });
+                                      },
+                                    );
+                                  };
+
+                                  // Attach to both editors
+                                  [original, modified].forEach((paneEditor) => {
+                                    paneEditor.onDidChangeCursorPosition(() =>
+                                      updateCursorInfo(paneEditor),
+                                    );
+                                    paneEditor.onDidChangeCursorSelection(() =>
+                                      updateCursorInfo(paneEditor),
+                                    );
+                                  });
+
+                                  monaco.editor.defineTheme(
+                                    "custom-diff-theme",
+                                    {
+                                      base:
+                                        theme === "light" ? "vs" : "vs-dark",
+                                      inherit: true,
+                                      rules: [],
+                                      colors:
+                                        theme === "light"
+                                          ? {
+                                              // Light mode
+                                              "diffEditor.insertedTextBackground":
+                                                "#eab308",
+                                              "diffEditor.removedTextBackground":
+                                                "#eab308",
+                                              "diffEditor.insertedLineBackground":
+                                                "#fef9c3",
+                                              "diffEditor.removedLineBackground":
+                                                "#fef9c3",
+
+                                              // full selection override
+                                              // "editor.selectionBackground":
+                                              //   "#86efac",
+                                              // "editor.selectionHighlightBackground":
+                                              //   "#86efac80",
+                                              // "editor.inactiveSelectionBackground":
+                                              //   "#86efac40",
+                                              // "editor.selectionForeground":
+                                              //   "#000000",
+                                              // "editor.selectionBorder":
+                                              //   "#00000000",
+                                              // "editor.selectionHighlightBorder":
+                                              //   "#00000000",
+                                            }
+                                          : {
+                                              // Dark mode
+                                              "diffEditor.insertedTextBackground":
+                                                "#b08900",
+                                              "diffEditor.removedTextBackground":
+                                                "#b08900",
+                                              "diffEditor.insertedLineBackground":
+                                                "#4a3d01",
+                                              "diffEditor.removedLineBackground":
+                                                "#4a3d01",
+
+                                              // full selection override
+                                              // "editor.selectionBackground":
+                                              //   "#22c55e",
+                                              // "editor.selectionHighlightBackground":
+                                              //   "#22c55e80",
+                                              // "editor.inactiveSelectionBackground":
+                                              //   "#22c55e40",
+                                              // "editor.selectionForeground":
+                                              //   "#000000",
+                                              // "editor.selectionBorder":
+                                              //   "#00000000",
+                                              // "editor.selectionHighlightBorder":
+                                              //   "#00000000",
+                                            },
+                                    },
+                                  );
+
+                                  monaco.editor.setTheme("custom-diff-theme");
+                                }}
+                              />
+                              <div className="text-primary text-right text-xs">
+                                {cursorPos.selLength !== 0 &&
+                                  `Sel: ${cursorPos.selLength}, `}
+                                Ln: {cursorPos.line}, Col: {cursorPos.column}
+                              </div>
+                            </SheetHeader>
+                          </SheetContent>
+                        </Sheet>
+                      </td>
+                      <td className="p-2 text-xs">
+                        {isMatch ? (
+                          <span className="rounded-sm px-4 py-1 text-green-700">
+                            Match
+                          </span>
+                        ) : (
+                          <span className="rounded-sm px-2 py-1 text-red-700">
+                            Different
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
