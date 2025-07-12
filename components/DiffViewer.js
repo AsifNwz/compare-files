@@ -370,8 +370,12 @@ export default function DiffViewer() {
                         <input type="checkbox" checked={isChecked} readOnly />
                         <span>{serial + 1}</span>
                       </td>
-                      <td className="p-2 text-xs text-wrap">{src.name}</td>
-                      <td className="p-2 text-xs text-wrap">{tgt.name}</td>
+                      <td className="p-2 text-xs text-wrap">
+                        {` ${src.name} (${src?.content?.split("\n")?.length - 1})`}
+                      </td>
+                      <td className="p-2 text-xs text-wrap">
+                        {` ${tgt.name} (${tgt?.content?.split("\n")?.length - 1})`}
+                      </td>
                       <td className="text-xs">
                         <Sheet
                           open={sheetOpen && selectedSet === index}
