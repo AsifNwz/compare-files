@@ -37,6 +37,8 @@ export default function DiffViewer() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeSrc, setActiveSrc] = useState(null);
   const [activeTgt, setActiveTgt] = useState(null);
+  const [mergedComparisonSet, setMergedComparisonSet] = useState([]);
+  const [isMerged, setIsMerged] = useState(false);
 
   const readFileContent = (file) => {
     return new Promise((resolve) => {
@@ -96,11 +98,14 @@ export default function DiffViewer() {
 
           for (let i = 0; i < sources.length; i++) {
             const src = sources[i];
-            const lines = src.content.split("\n");
-            const identifier = lines[line]?.slice(start, end);
+            const srcLines = src.content.split("\n");
+            const identifier = srcLines[line]?.slice(start, end);
 
             for (let tgt of targets) {
-              if (tgt.content.includes(identifier)) {
+              const tgtLines = tgt.content.split("\n");
+              const targetIdentifier = tgtLines[line]?.slice(start, end);
+
+              if (identifier && identifier === targetIdentifier) {
                 sets.push([src, tgt]);
                 break;
               }
@@ -115,6 +120,42 @@ export default function DiffViewer() {
       }),
       {
         loading: "Comparing files...",
+        success: (msg) => msg,
+        error: (msg) => msg,
+      },
+    );
+  };
+
+  const compareMerged = () => {
+    return toast.promise(
+      new Promise(async (resolve, reject) => {
+        try {
+          let srcLines = "";
+          let tgtLines = "";
+
+          for (let i = 0; i < comparisonSets.length; i++) {
+            const src = comparisonSets[i][0];
+            const tgt = comparisonSets[i][1];
+            srcLines += src.content;
+            tgtLines += tgt.content;
+          }
+
+          const set = [
+            [
+              { name: "Merged Source", content: srcLines },
+              { name: "Merged Target", content: tgtLines },
+            ],
+          ];
+
+          setMergedComparisonSet(set);
+          resolve(`Files merged.`);
+        } catch (err) {
+          console.log(err);
+          reject("Error while merging files.", err);
+        }
+      }),
+      {
+        loading: "Merging files...",
         success: (msg) => msg,
         error: (msg) => msg,
       },
@@ -152,17 +193,30 @@ export default function DiffViewer() {
   };
 
   const handleCompareLines = (src, trg) => {
-    const lowerSearch = searchTerm.toLowerCase();
+    const searchTerms = searchTerm
+      .toLowerCase()
+      .split(",")
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0);
 
-    const newSrcContent = (src?.content || "")
-      .split("\n")
-      .filter((line) => line.toLowerCase().startsWith(lowerSearch))
-      .join("\n");
+    const sortBySearchTerms = (lines) => {
+      const matched = [];
 
-    const newTrgContent = (trg?.content || "")
-      .split("\n")
-      .filter((line) => line.toLowerCase().startsWith(lowerSearch))
-      .join("\n");
+      searchTerms.forEach((term) => {
+        const matchedLines = lines.filter((line) =>
+          line.toLowerCase().startsWith(term),
+        );
+        matched.push(...matchedLines);
+      });
+
+      return matched;
+    };
+
+    const srcLines = (src?.content || "").split("\n");
+    const tgtLines = (trg?.content || "").split("\n");
+
+    const newSrcContent = sortBySearchTerms(srcLines).join("\n");
+    const newTrgContent = sortBySearchTerms(tgtLines).join("\n");
 
     setActiveSrc({ ...src, content: newSrcContent });
     setActiveTgt({ ...trg, content: newTrgContent });
@@ -265,8 +319,20 @@ export default function DiffViewer() {
         </div>
       ) : null}
 
-      {comparisonSets.length > 0 && (
+      {comparisonSets.length > 0 || mergedComparisonSet.length > 0 ? (
         <div className="mt-10 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div></div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsMerged(!isMerged);
+                !isMerged && compareMerged();
+              }}
+            >
+              {isMerged ? "Unmerge" : "Merge"}
+            </Button>
+          </div>
           <table className="w-full table-fixed border text-sm">
             <thead className="bg-accent text-left">
               <tr>
@@ -278,7 +344,7 @@ export default function DiffViewer() {
               </tr>
             </thead>
             <tbody>
-              {[...comparisonSets]
+              {(!isMerged ? comparisonSets : mergedComparisonSet)
                 .map((pair, index) => ({ index, pair }))
                 .sort((a, b) => {
                   const aMatch =
@@ -390,7 +456,7 @@ export default function DiffViewer() {
                                   wordWrap: "off",
                                   scrollBeyondLastLine: false,
                                   renderWhitespace: "all",
-                                  minimap: { enabled: false },
+                                  minimap: false,
                                   renderIndicators: false,
                                   // diffAlgorithm: "advanced",
                                 }}
@@ -525,7 +591,7 @@ export default function DiffViewer() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
       <IdentifierDialog
         open={showDialog}
