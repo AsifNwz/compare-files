@@ -59,7 +59,7 @@ export default function DiffViewer() {
 
           for (let i = 0; i < contents.length; i++) {
             if (used.has(i)) continue;
-            const lines = contents[i].content.split("\n");
+            const lines = contents[i].content.split(/\r\n|\n|\r/);
             const identifier = lines[line]?.slice(start, end);
 
             for (let j = i + 1; j < contents.length; j++) {
@@ -98,11 +98,11 @@ export default function DiffViewer() {
 
           for (let i = 0; i < sources.length; i++) {
             const src = sources[i];
-            const srcLines = src.content.split("\n");
+            const srcLines = src.content.split(/\r\n|\n|\r/);
             const identifier = srcLines[line]?.slice(start, end);
 
             for (let tgt of targets) {
-              const tgtLines = tgt.content.split("\n");
+              const tgtLines = tgt.content.split(/\r\n|\n|\r/);
               const targetIdentifier = tgtLines[line]?.slice(start, end);
 
               if (identifier && identifier === targetIdentifier) {
@@ -212,8 +212,8 @@ export default function DiffViewer() {
       return matched;
     };
 
-    const srcLines = (src?.content || "").split("\n");
-    const tgtLines = (trg?.content || "").split("\n");
+    const srcLines = (src?.content || "").split(/\r\n|\n|\r/);
+    const tgtLines = (trg?.content || "").split(/\r\n|\n|\r/);
 
     const newSrcContent = sortBySearchTerms(srcLines).join("\n");
     const newTrgContent = sortBySearchTerms(tgtLines).join("\n");
@@ -371,10 +371,10 @@ export default function DiffViewer() {
                         <span>{serial + 1}</span>
                       </td>
                       <td className="p-2 text-xs text-wrap">
-                        {` ${src.name} (${src?.content?.split("\n")?.length - 1})`}
+                        {` ${src.name} (${src?.content?.split(/\r\n|\n|\r/)?.length - 1})`}
                       </td>
                       <td className="p-2 text-xs text-wrap">
-                        {` ${tgt.name} (${tgt?.content?.split("\n")?.length - 1})`}
+                        {` ${tgt.name} (${tgt?.content?.split(/\r\n|\n|\r/)?.length - 1})`}
                       </td>
                       <td className="text-xs">
                         <Sheet
