@@ -136,8 +136,16 @@ export default function DiffViewer() {
           for (let i = 0; i < comparisonSets.length; i++) {
             const src = comparisonSets[i][0];
             const tgt = comparisonSets[i][1];
-            srcLines += src.content;
-            tgtLines += tgt.content;
+
+            const srcContent = src.content;
+            const tgtContent = tgt.content;
+
+            srcLines += /(\r\n|\r|\n)$/.test(srcContent)
+              ? srcContent
+              : srcContent + "\n";
+            tgtLines += /(\r\n|\r|\n)$/.test(tgtContent)
+              ? tgtContent
+              : tgtContent + "\n";
           }
 
           const set = [
